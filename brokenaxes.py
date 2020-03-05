@@ -1,10 +1,10 @@
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-import matplotlib.ticker as ticker
-from matplotlib import rcParams
 from datetime import timedelta
 
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
+from matplotlib import rcParams
 
 __author__ = 'Ben Dichter'
 
@@ -282,7 +282,7 @@ class BrokenAxes:
         """
         return CallCurator(method, self)
 
-    def subax_call(self, method, args, kwargs):
+    def subax_call(self, method, args, kwargs, attr=None):
         """Apply method call to all internal axes. Called by CallCurator.
         """
         result = []
@@ -295,7 +295,10 @@ class BrokenAxes:
                 ax.yaxis.set_major_locator(ticker.LogLocator())
             else:
                 ax.yaxis.set_major_locator(ticker.AutoLocator())
-            result.append(getattr(ax, method)(*args, **kwargs))
+            if attr:
+                result.append(getattr(getattr(ax, attr), method)(*args, **kwargs))
+            else:
+                result.append(getattr(ax, method)(*args, **kwargs))
 
         self.standardize_ticks()
         self.set_spines()
@@ -322,12 +325,23 @@ class BrokenAxes:
 
 class CallCurator:
     """Used by BrokenAxes.__getattr__ to pass methods to internal axes."""
-    def __init__(self, method, broken_axes):
-        self.method = method
+    def __init__(self, attr, broken_axes):
+        self.attr = attr
         self.broken_axes = broken_axes
 
     def __call__(self, *args, **kwargs):
-        return self.broken_axes.subax_call(self.method, args, kwargs)
+        return self.broken_axes.subax_call(self.attr, args, kwargs)
+
+    def __getattr__(self, name):
+        return AttributeCurator(self, name)
+
+class AttributeCurator:
+    def __init__(self, call_curator, attr):
+        self.call_curator = call_curator
+        self.attr = attr
+
+    def __call__(self, *args, **kwargs):
+        return self.call_curator.broken_axes.subax_call(self.attr, args, kwargs, self.call_curator.attr)
 
 
 def brokenaxes(*args, **kwargs):
